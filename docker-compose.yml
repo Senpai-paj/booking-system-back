@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: booking-db
+    environment:
+      POSTGRES_DB: booking_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - booking-db-data:/var/lib/postgresql/data
+
+volumes:
+  booking-db-data:
