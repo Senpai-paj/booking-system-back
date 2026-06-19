@@ -1,0 +1,59 @@
+@startuml
+!define PK <b><color:red>PK</color></b>
+!define FK <b><color:blue>FK</color></b>
+
+entity "User" as user {
+    * id : BIGINT <<PK>>
+    --
+    * email : VARCHAR(255) <<UK>>
+    * password : VARCHAR(255)
+    * first_name : VARCHAR(100)
+    * last_name : VARCHAR(100)
+    role : VARCHAR(50)
+    status : VARCHAR(50)
+}
+
+entity "EmployeeProfile" as employee {
+    * id : BIGINT <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    specialization : VARCHAR(255)
+}
+
+entity "Service" as service {
+    * id : BIGINT <<PK>>
+    --
+    * name : VARCHAR(255)
+    * duration_minutes : INT
+    description : TEXT
+}
+
+entity "Schedule" as schedule {
+    * id : BIGINT <<PK>>
+    --
+    employee_id : BIGINT <<FK>>
+    work_day_start : TIME
+    work_day_end : TIME
+    slot_granularity_minutes : INT
+}
+
+entity "Booking" as booking {
+    * id : BIGINT <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    employee_id : BIGINT <<FK>>
+    service_id : BIGINT <<FK>>
+    start_time : TIMESTAMP
+    end_time : TIMESTAMP
+    status : VARCHAR(50)
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+' Relationships
+user ||--o{ booking : "1 user → N booking"
+employee ||--o{ booking : "1 employee → N booking"
+service ||--o{ booking : "1 service → N booking"
+employee ||--|| schedule : "1 employee → 1 schedule"
+
+@enduml
