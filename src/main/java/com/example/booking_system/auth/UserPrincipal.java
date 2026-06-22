@@ -1,6 +1,6 @@
 package com.example.booking_system.auth;
 
-import com.example.booking_system.User.User;
+import com.example.booking_system.user.User;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
