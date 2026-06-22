@@ -1,10 +1,10 @@
 databaseChangeLog:
   - changeSet:
-      id: 001-create-employee-profiles
+      id: 001-create-users
       author: viktorria_shevchenko
       changes:
         - createTable:
-            tableName: employee_profiles
+            tableName: users
             columns:
               - column:
                   name: id
@@ -14,25 +14,46 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
-                  name: user_id
-                  type: BIGINT
+                  name: email
+                  type: VARCHAR(255)
                   constraints:
-                    nullable: false
-                    foreignKeyName: fk_employee_profile_user
-                    references: users(id)
                     unique: true
+                    nullable: false
               - column:
-                  name: specialization
+                  name: password
                   type: VARCHAR(255)
                   constraints:
                     nullable: false
+              - column:
+                  name: first_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: BOOLEAN
+                  defaultValue: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: specialization
+                  type: VARCHAR(255)
               - column:
                   name: description
                   type: TEXT
               - column:
                   name: experience_years
                   type: INT
-                  defaultValue: 0
               - column:
                   name: is_active
                   type: BOOLEAN
@@ -47,9 +68,3 @@ databaseChangeLog:
                   type: TIMESTAMP
                   constraints:
                     nullable: false
-        - createIndex:
-            tableName: employee_profiles
-            indexName: idx_employee_profiles_is_active
-            columns:
-              - column:
-                  name: is_active

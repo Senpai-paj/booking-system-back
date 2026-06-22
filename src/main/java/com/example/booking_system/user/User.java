@@ -1,51 +1,55 @@
-package com.example.booking_system.employee;
+package com.example.booking_system.user;
 
-import com.example.booking_system.User.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "employee_profiles")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EntityListeners(AuditingEntityListener.class)
-public class EmployeeProfile {
+@Table(name = "users")
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "user_id",
-            nullable = false,
-            unique = true
-    )
-    private User user;
+    @Column(nullable = false)
+    private String firstName;
 
     @Column(nullable = false)
+    private String lastName;
+
+    @Column(nullable = false)
+    private boolean status;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    private Role role;
+
     private String specialization;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "experience_years")
-    @Builder.Default
-    private Integer experienceYears = 0;
+    private Integer experienceYears;
 
     @Column(name = "is_active")
-    @Builder.Default
-    private Boolean isActive = true;
+    private Boolean isActive;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
@@ -54,6 +58,18 @@ public class EmployeeProfile {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public boolean isEmployee() {
+        return role == Role.EMPLOYEE || role == Role.ADMIN;
+    }
+
+    public boolean isAdmin() {
+        return role == Role.ADMIN;
+    }
+
+    public boolean isClient() {
+        return role == Role.CUSTOMER;
+    }
 
     public void setActive(boolean active) {
         this.isActive = active;

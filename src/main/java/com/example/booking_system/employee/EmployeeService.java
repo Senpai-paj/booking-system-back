@@ -1,62 +1,61 @@
 package com.example.booking_system.employee;
 
+import com.example.booking_system.user.Role;
 import com.example.booking_system.employee.dto.EmployeeRequest;
 import com.example.booking_system.employee.dto.EmployeeResponse;
 import com.example.booking_system.employee.dto.EmployeeShortResponse;
 import com.example.booking_system.exception.ResourceNotFoundException;
 import com.example.booking_system.exception.ValidationException;
-import com.example.booking_system.User.User;
-import com.example.booking_system.User.UserRepository;
+import com.example.booking_system.user.User;
+import com.example.booking_system.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EmployeeService {
 
-    private final EmployeeProfileRepository employeeRepository;
     private final UserRepository userRepository;
     private final EmployeeMapper employeeMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public EmployeeResponse createEmployee(EmployeeRequest request) {
-        log.info("Creating new employee profile for userId: {}", request.getUserId());
+        log.info("Creating new employee for userId: {}", request.getUserId());
 
         // Проверка существования пользователя
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + request.getUserId()));
 
-        // Проверка, что у пользователя нет уже профиля сотрудника
-        if (employeeRepository.existsByUserId(request.getUserId())) {
-            throw new ValidationException("User already has an employee profile");
+        // Проверка, что пользователь уже сотрудник
+        if (user.isEmployee()) {
+            throw new ValidationException("User is already an employee");
         }
 
-        // Создание профиля
-        EmployeeProfile employee = employeeMapper.toEntity(request, user);
-        EmployeeProfile saved = employeeRepository.save(employee);
+        // Обновляем пользователя
+        employeeMapper.updateUser(user, request);
+        user.setRole(Role.EMPLOYEE);
+        user.setActive(true);
 
-        log.info("Employee profile created with id: {}", saved.getId());
+        User saved = userRepository.save(user);
+        log.info("Employee created with id: {}", saved.getId());
         return employeeMapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public EmployeeResponse getEmployeeById(Long id) {
-        EmployeeProfile employee = findEmployeeOrThrow(id);
-        return employeeMapper.toResponse(employee);
-    }
-
-    @Transactional(readOnly = true)
-    public EmployeeResponse getEmployeeByUserId(Long userId) {
-        EmployeeProfile employee = employeeRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found for userId: " + userId));
-        return employeeMapper.toResponse(employee);
+        User user = findEmployeeOrThrow(id);
+        return employeeMapper.toResponse(user);
     }
 
     @Transactional(readOnly = true)
@@ -68,104 +67,67 @@ public class EmployeeService {
             String sortBy,
             String sortDirection
     ) {
-        log.debug("Getting employees with filters - specialization: {}, isActive: {}, page: {}, size: {}",
-                specialization, isActive, page, size);
-
         Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<EmployeeProfile> pageResult;
+        // Ищем только сотрудников (EMPLOYEE или ADMIN)
+        Page<User> pageResult = userRepository.findByRoleIn(
+                List.of(Role.EMPLOYEE, Role.ADMIN),
+                pageable
+        );
 
-        // Логика фильтрации
-        if (isActive != null && !isActive) {
-            // Если запрошены неактивные - просто возвращаем все с фильтром
-            if (specialization != null && !specialization.isEmpty()) {
-                pageResult = employeeRepository.findBySpecializationContainingIgnoreCase(specialization, pageable);
-            } else {
-                pageResult = employeeRepository.findAll(pageable);
-            }
-        } else if (specialization != null && !specialization.isEmpty()) {
-            // Активные + фильтр по специализации
-            if (isActive == null || isActive) {
-                pageResult = employeeRepository.findByIsActiveTrueAndSpecializationContainingIgnoreCase(specialization, pageable);
-            } else {
-                pageResult = employeeRepository.findBySpecializationContainingIgnoreCase(specialization, pageable);
-            }
-        } else {
-            // Только активные
-            if (isActive == null || isActive) {
-                pageResult = employeeRepository.findByIsActiveTrue(pageable);
-            } else {
-                pageResult = employeeRepository.findAll(pageable);
-            }
+        return employeeMapper.toShortResponsePage(pageResult);
+    }
+
+    @Transactional(readOnly = true)
+    public EmployeeResponse getEmployeeByUserId(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        if (!user.isEmployee()) {
+            throw new ResourceNotFoundException("User is not an employee");
         }
+        return employeeMapper.toResponse(user);
+    }
 
-        return pageResult.map(employeeMapper::toShortResponse);
+    @Transactional(readOnly = true)
+    public long countActiveEmployeesBySpecialization(String specialization) {
+        return userRepository.countByIsActiveTrueAndSpecialization(specialization);
     }
 
     @Transactional
     public EmployeeResponse updateEmployee(Long id, EmployeeRequest request) {
-        log.info("Updating employee profile with id: {}", id);
-
-        EmployeeProfile employee = findEmployeeOrThrow(id);
-
-        // Если меняется пользователь
-        if (request.getUserId() != null && !request.getUserId().equals(employee.getUser().getId())) {
-            User newUser = userRepository.findById(request.getUserId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + request.getUserId()));
-
-            if (employeeRepository.existsByUserId(request.getUserId()) &&
-                    !employeeRepository.findByUserId(request.getUserId()).get().getId().equals(id)) {
-                throw new ValidationException("User already has an employee profile");
-            }
-            employee.setUser(newUser);
-        }
-
-        // Обновление полей
-        if (request.getSpecialization() != null) {
-            employee.setSpecialization(request.getSpecialization());
-        }
-        if (request.getDescription() != null) {
-            employee.setDescription(request.getDescription());
-        }
-        if (request.getExperienceYears() != null) {
-            employee.setExperienceYears(request.getExperienceYears());
-        }
-        if (request.getIsActive() != null) {
-            employee.setIsActive(request.getIsActive());
-        }
-
-        EmployeeProfile updated = employeeRepository.save(employee);
-        log.info("Employee profile updated with id: {}", updated.getId());
-
+        User user = findEmployeeOrThrow(id);
+        employeeMapper.updateUser(user, request);
+        User updated = userRepository.save(user);
         return employeeMapper.toResponse(updated);
     }
 
     @Transactional
     public void toggleActiveStatus(Long id) {
-        EmployeeProfile employee = findEmployeeOrThrow(id);
-        employee.setActive(!employee.isActive());
-        employeeRepository.save(employee);
-        log.info("Employee profile {} status toggled to: {}", id, employee.isActive());
+        User user = findEmployeeOrThrow(id);
+        user.setActive(!user.isActive());
+        userRepository.save(user);
     }
 
     @Transactional
     public void deleteEmployee(Long id) {
-        EmployeeProfile employee = findEmployeeOrThrow(id);
-        // Soft delete - просто делаем неактивным
-        employee.setActive(false);
-        employeeRepository.save(employee);
-        log.info("Employee profile soft-deleted with id: {}", id);
+        User user = findEmployeeOrThrow(id);
+        user.setActive(false);
+        user.setRole(Role.CUSTOMER);
+        user.setSpecialization(null);
+        user.setDescription(null);
+        user.setExperienceYears(null);
+        userRepository.save(user);
     }
 
-    @Transactional(readOnly = true)
-    public long countActiveEmployeesBySpecialization(String specialization) {
-        return employeeRepository.countActiveBySpecialization(specialization);
-    }
+    private User findEmployeeOrThrow(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
-    // Helper method
-    private EmployeeProfile findEmployeeOrThrow(Long id) {
-        return employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+        if (!user.isEmployee()) {
+            throw new ResourceNotFoundException("User is not an employee");
+        }
+        return user;
     }
 }
