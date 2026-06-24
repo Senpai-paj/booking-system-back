@@ -1,4 +1,4 @@
-package com.example.booking_system.User;
+package com.example.booking_system.user;
 
 import com.example.booking_system.auth.UserPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
