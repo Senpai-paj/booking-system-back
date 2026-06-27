@@ -1,0 +1,78 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-bookings
+      author: viktorria_shevchenko
+      changes:
+        - createTable:
+            tableName: bookings
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: client_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_booking_client
+                    references: users(id)
+              - column:
+                  name: employee_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_booking_employee
+                    references: users(id)
+              - column:
+                  name: service_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_booking_service
+                    references: services(id)
+              - column:
+                  name: start_time
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: end_time
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(50)
+                  defaultValue: "PENDING"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: bookings
+            indexName: idx_bookings_employee_start_time
+            columns:
+              - column:
+                  name: employee_id
+              - column:
+                  name: start_time
+        - createIndex:
+            tableName: bookings
+            indexName: idx_bookings_client_status
+            columns:
+              - column:
+                  name: client_id
+              - column:
+                  name: status
