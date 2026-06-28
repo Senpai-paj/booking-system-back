@@ -20,11 +20,20 @@ public interface ScheduleMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "employee", source = "employee")
+    @Mapping(target = "workDayStart", source = "request.workDayStart")
+    @Mapping(target = "workDayEnd", source = "request.workDayEnd")
+    @Mapping(target = "weekDay", source = "request.weekDay")
+    @Mapping(target = "slotGranularityMinutes", source = "request.slotGranularityMinutes")
+    @Mapping(target = "isActive", source = "request.active")
     Schedule toEntity(ScheduleRequest request, User employee);
 
-    @Mapping(target = "employeeFullName", expression = "java(schedule.getEmployee().getFirstname() + \" \" + schedule.getEmployee().getLastname())")
+    @Mapping(target = "employeeId", source = "schedule.employee.id")
+    @Mapping(target = "employeeFullName", expression = "java(schedule.getEmployee().getFirstName() + \" \" + schedule.getEmployee().getLastName())")
+    @Mapping(target = "isActive", source = "schedule.active")
     ScheduleResponse toResponse(Schedule schedule);
 
+    @Mapping(target = "isActive", source = "schedule.active")
     ScheduleShortResponse toShortResponse(Schedule schedule);
 
     List<ScheduleResponse> toResponseList(List<Schedule> schedules);

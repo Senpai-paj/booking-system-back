@@ -29,14 +29,14 @@ public class Schedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @JoinColumn(name="id", nullable = false)
+    @JoinColumn(name="employee_id", nullable = false)
     @ManyToOne(fetch = FetchType.LAZY)
     private User employee;
 
-    @Column(name = "work_day_start", updatable = false)
+    @Column(name = "work_day_start", nullable = false)
     private LocalTime workDayStart;
 
-    @Column(name = "work_day_end", updatable = false)
+    @Column(name = "work_day_end", nullable = false)
     private LocalTime workDayEnd;
 
     @Column
@@ -45,7 +45,7 @@ public class Schedule {
     @Column
     private Day weekDay;
 
-    @Column
+    @Column(name = "is_active")
     private boolean isActive;
 
     @Column

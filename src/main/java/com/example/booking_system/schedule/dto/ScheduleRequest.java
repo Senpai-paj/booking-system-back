@@ -1,6 +1,8 @@
 package com.example.booking_system.schedule.dto;
 
 import com.example.booking_system.schedule.Day;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,6 +32,8 @@ public class ScheduleRequest {
     @Builder.Default
     private Integer slotGranularityMinutes = 30;
 
-    private boolean isActive;
+    @JsonProperty("isActive")
+    @JsonAlias("active")
+    private boolean active;
 
 }
