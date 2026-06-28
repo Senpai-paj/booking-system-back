@@ -36,6 +36,10 @@ public interface ScheduleMapper {
     @Mapping(target = "updatedAt", ignore = true)
     void updateEntity(@MappingTarget Schedule schedule, ScheduleRequest request);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "employee", ignore = true)
+    void updateEntityFromDto(ScheduleRequest dto, @MappingTarget Schedule entity);
+
     default Page<ScheduleResponse> toResponsePage(Page<Schedule> page) {
         if (page == null) {
             return null;
