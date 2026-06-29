@@ -1,6 +1,6 @@
 package com.example.booking_system.booking;
 
-import com.example.booking_system.servicecatalog.ServiceEntity;
+import com.example.booking_system.servicecatalog.Service;
 import com.example.booking_system.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -27,8 +27,8 @@ public class Booking {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "client_id", nullable = false)
-    private User client;
+    @JoinColumn(name = "customer_id", nullable = false)
+    private User customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
@@ -36,7 +36,7 @@ public class Booking {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
-    private ServiceEntity service;
+    private Service service;
 
     @Column(name = "start_time", nullable = false)
     private LocalDateTime startTime;

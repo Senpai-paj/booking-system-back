@@ -11,12 +11,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Service
+@org.springframework.stereotype.Service
 @RequiredArgsConstructor
 @Slf4j
 public class ServiceService {
@@ -33,10 +32,10 @@ public class ServiceService {
             throw new ValidationException("Service with name '" + request.getName() + "' already exists");
         }
 
-        ServiceEntity service = serviceMapper.toEntity(request);
+        Service service = serviceMapper.toEntity(request);
         service.setActive(request.getIsActive() != null ? request.getIsActive() : true);
 
-        ServiceEntity saved = serviceRepository.save(service);
+        Service saved = serviceRepository.save(service);
         log.info("Service created with id: {}", saved.getId());
 
         return serviceMapper.toResponse(saved);
@@ -45,13 +44,13 @@ public class ServiceService {
     // read
     @Transactional(readOnly = true)
     public ServiceResponse getServiceById(Long id) {
-        ServiceEntity service = findServiceOrThrow(id);
+        Service service = findServiceOrThrow(id);
         return serviceMapper.toResponse(service);
     }
 
     @Transactional(readOnly = true)
     public ServiceResponse getActiveServiceById(Long id) {
-        ServiceEntity service = serviceRepository.findByIdAndIsActiveTrue(id)
+        Service service = serviceRepository.findByIdAndIsActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Active service not found with id: " + id));
         return serviceMapper.toResponse(service);
     }
@@ -71,7 +70,7 @@ public class ServiceService {
         Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<ServiceEntity> pageResult;
+        Page<Service> pageResult;
 
         if (isActive != null && !isActive) {
             // Inactive
@@ -101,7 +100,7 @@ public class ServiceService {
 
     @Transactional(readOnly = true)
     public List<ServiceShortResponse> getAllActiveServices() {
-        List<ServiceEntity> services = serviceRepository.findAllByIsActiveTrue();
+        List<Service> services = serviceRepository.findAllByIsActiveTrue();
         return serviceMapper.toShortResponseList(services);
     }
 
@@ -110,7 +109,7 @@ public class ServiceService {
     public ServiceResponse updateService(Long id, ServiceRequest request) {
         log.info("Updating service with id: {}", id);
 
-        ServiceEntity service = findServiceOrThrow(id);
+        Service service = findServiceOrThrow(id);
 
         // Checking the uniqueness of a name (if the name has changed)
         if (!service.getName().equalsIgnoreCase(request.getName()) &&
@@ -120,7 +119,7 @@ public class ServiceService {
 
         serviceMapper.updateEntity(service, request);
 
-        ServiceEntity updated = serviceRepository.save(service);
+        Service updated = serviceRepository.save(service);
         log.info("Service updated with id: {}", updated.getId());
 
         return serviceMapper.toResponse(updated);
@@ -129,7 +128,7 @@ public class ServiceService {
     // delete
     @Transactional
     public void toggleActiveStatus(Long id) {
-        ServiceEntity service = findServiceOrThrow(id);
+        Service service = findServiceOrThrow(id);
         service.setActive(!service.isActive());
         serviceRepository.save(service);
         log.info("Service {} status toggled to: {}", id, service.isActive());
@@ -137,14 +136,14 @@ public class ServiceService {
 
     @Transactional
     public void deleteService(Long id) {
-        ServiceEntity service = findServiceOrThrow(id);
+        Service service = findServiceOrThrow(id);
         service.setActive(false);
         serviceRepository.save(service);
         log.info("Service soft-deleted with id: {}", id);
     }
 
     // helper
-    private ServiceEntity findServiceOrThrow(Long id) {
+    private Service findServiceOrThrow(Long id) {
         return serviceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
     }

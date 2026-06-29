@@ -3,12 +3,9 @@ package com.example.booking_system.booking;
 import com.example.booking_system.booking.dto.BookingRequest;
 import com.example.booking_system.booking.dto.BookingResponse;
 import com.example.booking_system.booking.dto.BookingShortResponse;
-import com.example.booking_system.servicecatalog.ServiceEntity;
+import com.example.booking_system.servicecatalog.Service;
 import com.example.booking_system.user.User;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.NullValuePropertyMappingStrategy;
-import org.mapstruct.ReportingPolicy;
+import org.mapstruct.*;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
@@ -22,18 +19,20 @@ public interface  BookingMapper {
 
     // Create a Booking from a request
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "client", source = "client")
+    @Mapping(target = "customer", source = "customer")
     @Mapping(target = "employee", source = "employee")
     @Mapping(target = "service", source = "service")
-    @Mapping(target = "endTime", ignore = true)
     @Mapping(target = "status", constant = "PENDING")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    Booking toEntity(BookingRequest request, User client, User employee, ServiceEntity service);
+    Booking toEntity(BookingRequest request, User customer, User employee, Service service);
+
+    @Mapping(target = "id", ignore = true)
+    void updateBooking(BookingRequest request, User customer, User employee, Service service, @MappingTarget Booking existingBooking);
 
     // Entity -> Response
-    @Mapping(target = "clientId", source = "client.id")
-    @Mapping(target = "clientFullName", expression = "java(booking.getClient().getFirstName() + \" \" + booking.getClient().getLastName())")
+    @Mapping(target = "customerId", source = "customer.id")
+    @Mapping(target = "customerFullName", expression = "java(booking.getCustomer().getFirstName() + \" \" + booking.getCustomer().getLastName())")
     @Mapping(target = "employeeId", source = "employee.id")
     @Mapping(target = "employeeFullName", expression = "java(booking.getEmployee().getFirstName() + \" \" + booking.getEmployee().getLastName())")
     @Mapping(target = "serviceId", source = "service.id")

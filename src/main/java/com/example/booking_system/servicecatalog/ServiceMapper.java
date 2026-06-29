@@ -20,35 +20,35 @@ public interface ServiceMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "isActive", source = "isActive")
-    ServiceEntity toEntity(ServiceRequest request);
+    Service toEntity(ServiceRequest request);
 
     // Entity -> Response
     @Mapping(target = "isActive", source = "isActive")
-    ServiceResponse toResponse(ServiceEntity service);
+    ServiceResponse toResponse(Service service);
 
     // Entity -> ShortResponse
     @Mapping(target = "isActive", source = "isActive")
-    ServiceShortResponse toShortResponse(ServiceEntity service);
+    ServiceShortResponse toShortResponse(Service service);
 
     // Lists
-    List<ServiceResponse> toResponseList(List<ServiceEntity> services);
-    List<ServiceShortResponse> toShortResponseList(List<ServiceEntity> services);
+    List<ServiceResponse> toResponseList(List<Service> services);
+    List<ServiceShortResponse> toShortResponseList(List<Service> services);
 
     // Update
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void updateEntity(@MappingTarget ServiceEntity service, ServiceRequest request);
+    void updateEntity(@MappingTarget Service service, ServiceRequest request);
 
     // Pages
-    default Page<ServiceResponse> toResponsePage(Page<ServiceEntity> page) {
+    default Page<ServiceResponse> toResponsePage(Page<Service> page) {
         if (page == null) {
             return null;
         }
         return page.map(this::toResponse);
     }
 
-    default Page<ServiceShortResponse> toShortResponsePage(Page<ServiceEntity> page) {
+    default Page<ServiceShortResponse> toShortResponsePage(Page<Service> page) {
         if (page == null) {
             return null;
         }

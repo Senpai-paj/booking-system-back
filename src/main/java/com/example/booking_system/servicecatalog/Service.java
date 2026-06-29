@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
-public class ServiceEntity {
+public class Service {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
