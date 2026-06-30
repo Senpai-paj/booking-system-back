@@ -1,6 +1,8 @@
 package com.example.booking_system.booking;
 
 import com.example.booking_system.booking.dto.BookingRequest;
+import com.example.booking_system.booking.dto.BookingResponse;
+import com.example.booking_system.booking.dto.BookingShortResponse;
 import com.example.booking_system.schedule.Day;
 import com.example.booking_system.schedule.Schedule;
 import com.example.booking_system.schedule.ScheduleRepository;
@@ -11,6 +13,7 @@ import com.example.booking_system.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -30,7 +33,7 @@ public class BookingService {
     private final ScheduleRepository scheduleRepository;
     private final BookingMapper bookingMapper;
 
-    //TODO: getOneById, getAllByEmployee, getAllByCustomer, getAllByAdmin, createBooking, deleteBooking
+    //TODO: createBooking
     //long numberOfSlots = bookingMinutes / existingSchedule.getSlotGranularityMinutes();
     /*
 
@@ -68,6 +71,99 @@ public class BookingService {
 
         }
          */
+
+    @Transactional
+    public BookingShortResponse changeStatus(Long bookingId, BookingStatus status) {
+        log.info("Changing booking's ({}) status with {}", bookingId, status);
+
+        try {
+            Booking existingBooking = bookingRepository.findById(bookingId)
+                    .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
+
+            bookingMapper.updateBookingStatus(status, existingBooking);
+
+            Booking updatedBooking = bookingRepository.save(existingBooking);
+
+            return bookingMapper.toShortResponse(updatedBooking);
+
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while changing status on booking with ID {}", bookingId);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+
+
+    }
+
+    @Transactional
+    public String deleteBooking (Long bookingId) {
+        log.info("Deleting booking with ID: {}", bookingId);
+
+        try {
+            Booking existingBooking = bookingRepository.findById(bookingId)
+                    .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
+
+            bookingRepository.delete(existingBooking);
+            return String.format("Successfully deleted booking with ID: %s", bookingId);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while deleting booking with ID {}", bookingId);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+    }
+
+    @Transactional
+    public List<BookingResponse> getAllByCustomer (Long customerId) {
+        log.info("Getting bookings for customer with ID: {}", customerId);
+
+        try {
+            List<Booking> allBookings = bookingRepository.findAllByCustomerId(customerId);
+
+            if (allBookings.isEmpty()) {
+                throw new EntityNotFoundException("Bookings not found for customer ID: " + customerId);
+            }
+
+            return bookingMapper.toResponseList(allBookings);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while getting bookings for customer with ID {}", customerId);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+
+    }
+
+    @Transactional
+    public List<BookingResponse> getAllByEmployee (Long employeeId) {
+        log.info("Getting bookings for employee with ID: {}", employeeId);
+
+        try {
+
+            List<Booking> allBookings = bookingRepository.findAllByEmployeeId(employeeId);
+
+            if (allBookings.isEmpty()) {
+                throw new EntityNotFoundException("Bookings not found for employee ID: " + employeeId);
+            }
+
+            return bookingMapper.toResponseList(allBookings);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while getting bookings for employee with ID {}", employeeId);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+
+    }
+
+    @Transactional
+    public BookingResponse getOneById(Long bookingId) {
+        log.info("Getting booking with ID: {}", bookingId);
+
+        try {
+            Booking existingBooking = bookingRepository.findById(bookingId)
+                    .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
+
+            return bookingMapper.toResponse(existingBooking);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while getting booking with ID {}", bookingId);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+
+    }
 
 
     @Transactional

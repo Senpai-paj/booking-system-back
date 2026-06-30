@@ -20,6 +20,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     // Search employee booking
     Page<Booking> findByEmployee(User employee, Pageable pageable);
 
+    List<Booking> findAllByEmployeeId(Long employeeId);
+
+    List<Booking> findAllByCustomerId(Long customerId);
+
     //  Search employee booking by status
     Page<Booking> findByEmployeeAndStatus(User employee, BookingStatus status, Pageable pageable);
 

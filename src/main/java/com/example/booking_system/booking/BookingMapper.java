@@ -62,4 +62,11 @@ public interface  BookingMapper {
         }
         return page.map(this::toShortResponse);
     }
+
+    default void updateBookingStatus(BookingStatus status, @MappingTarget Booking existingBooking) {
+        if (status == null || existingBooking == null) {
+            return;
+        }
+        existingBooking.setStatus(status);
+    }
 }
