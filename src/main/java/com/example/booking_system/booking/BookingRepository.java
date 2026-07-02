@@ -14,17 +14,8 @@ import java.util.List;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
-    // Search customer booking
-    Page<Booking> findByClient(User client, Pageable pageable);
-
-    // Search employee booking
+    Page<Booking> findByCustomer(User customer, Pageable pageable);
     Page<Booking> findByEmployee(User employee, Pageable pageable);
-
-    List<Booking> findAllByEmployeeId(Long employeeId);
-
-    List<Booking> findAllByCustomerId(Long customerId);
-
-    //  Search employee booking by status
     Page<Booking> findByEmployeeAndStatus(User employee, BookingStatus status, Pageable pageable);
 
     // Checking the intersection of armor

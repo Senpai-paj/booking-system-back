@@ -14,6 +14,8 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -33,39 +35,79 @@ public class BookingService {
     private final ScheduleRepository scheduleRepository;
     private final BookingMapper bookingMapper;
 
-    //TODO: Send free slots, changeStatus
+    //TODO: changeStatus
 
-@Transactional(readOnly = true)
-public List<LocalTime> getFreeSlots(Long employeeId, Long serviceId, LocalDate targetDate) {
-
-    Service service = serviceRepository.findById(serviceId)
-            .orElseThrow(() -> new EntityNotFoundException("Service not found"));
-
-    Day weekDay = Day.valueOf(targetDate.getDayOfWeek().name());
-    Schedule schedule = scheduleRepository.findByEmployeeIdAndWeekDayAndIsActiveTrue(employeeId, weekDay)
-            .orElseThrow(() -> new IllegalArgumentException("Employee does not work on this day"));
-
-    List<LocalTime> freeSlots = new ArrayList<>();
-    LocalTime currentSlotTime = schedule.getWorkDayStart();
-    LocalTime workDayEnd = schedule.getWorkDayEnd();
-
-    int serviceDuration = service.getDurationMinutes();
-    int stepMinutes = schedule.getSlotGranularityMinutes();
-
-    while (!currentSlotTime.plusMinutes(serviceDuration).isAfter(workDayEnd)) {
-        LocalDateTime potentialStart = LocalDateTime.of(targetDate, currentSlotTime);
-        LocalDateTime potentialEnd = potentialStart.plusMinutes(serviceDuration);
-
-        if (!slotNotAvailable(potentialStart, potentialEnd, employeeId, null)) {
-            freeSlots.add(currentSlotTime);
-        }
-
-        // Advance by the 30-minute granularity step
-        currentSlotTime = currentSlotTime.plusMinutes(stepMinutes);
+    @Transactional(readOnly = true)
+    public List<LocalDateTime> getFreeSlotsForDay(Long employeeId, Long serviceId, LocalDate targetDate) {
+        log.info("Getting free slots for employee {}, service {} on date {}", employeeId, serviceId, targetDate);
+        return findFreeSlotsForPeriod(employeeId, serviceId, targetDate, targetDate);
     }
 
-    return freeSlots;
-}
+    @Transactional(readOnly = true)
+    public List<LocalDateTime> getFreeSlotsForWeek(Long employeeId, Long serviceId, LocalDate startDate) {
+        log.info("Getting free slots for employee {}, service {} for week starting {}", employeeId, serviceId, startDate);
+        LocalDate endDate = startDate.plusDays(6);
+        return findFreeSlotsForPeriod(employeeId, serviceId, startDate, endDate);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LocalDateTime> getFreeSlotsForSeveralDays(Long employeeId, Long serviceId, LocalDate startDate, int numberOfDays) {
+        log.info("Getting free slots for employee {}, service {} for {} days starting {}",
+                employeeId, serviceId, numberOfDays, startDate);
+        LocalDate endDate = startDate.plusDays(numberOfDays - 1);
+        return findFreeSlotsForPeriod(employeeId, serviceId, startDate, endDate);
+    }
+
+//  General logic
+
+    private List<LocalDateTime> findFreeSlotsForPeriod(Long employeeId, Long serviceId, LocalDate startDate, LocalDate endDate) {
+
+        Service service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new EntityNotFoundException("Service not found"));
+
+        int serviceDuration = service.getDurationMinutes();
+        List<LocalDateTime> freeSlots = new ArrayList<>();
+
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+
+            Day weekDay = Day.valueOf(currentDate.getDayOfWeek().name());
+
+            Schedule schedule = scheduleRepository
+                    .findByEmployeeIdAndWeekDayAndIsActiveTrue(employeeId, weekDay)
+                    .orElse(null);
+
+            if (schedule != null) {
+                List<LocalDateTime> slotsForDay = findFreeSlotsForDay(currentDate, schedule, serviceDuration);
+                freeSlots.addAll(slotsForDay);
+            }
+
+            currentDate = currentDate.plusDays(1);
+        }
+        return freeSlots;
+    }
+
+    private List<LocalDateTime> findFreeSlotsForDay(LocalDate date, Schedule schedule, int serviceDuration) {
+
+        List<LocalDateTime> freeSlots = new ArrayList<>();
+
+        LocalTime currentSlotTime = schedule.getWorkDayStart();
+        LocalTime workDayEnd = schedule.getWorkDayEnd();
+        int stepMinutes = schedule.getSlotGranularityMinutes();
+
+        while (!currentSlotTime.plusMinutes(serviceDuration).isAfter(workDayEnd)) {
+
+            LocalDateTime potentialStart = LocalDateTime.of(date, currentSlotTime);
+            LocalDateTime potentialEnd = potentialStart.plusMinutes(serviceDuration);
+
+            if (!slotNotAvailable(potentialStart, potentialEnd, schedule.getEmployee().getId(), null)) {
+                freeSlots.add(potentialStart);
+            }
+
+            currentSlotTime = currentSlotTime.plusMinutes(stepMinutes);
+        }
+        return freeSlots;
+    }
 
     @Transactional
     public BookingResponse createBooking(BookingRequest request) {
@@ -132,43 +174,66 @@ public List<LocalTime> getFreeSlots(Long employeeId, Long serviceId, LocalDate t
         }
     }
 
-    @Transactional
-    public List<BookingResponse> getAllByCustomer (Long customerId) {
-        log.info("Getting bookings for customer with ID: {}", customerId);
+    @Transactional(readOnly = true)
+    public Page<BookingShortResponse> getAllByCustomer (Long customerId, Pageable pageable) {
+        log.info("Getting bookings for customer with ID: {}, page: {}, size: {}",
+                customerId, pageable.getPageNumber(), pageable.getPageSize());
+
+        User customer = userRepository.findById(customerId)
+                .orElseThrow(() -> new EntityNotFoundException("Customer not found"));
 
         try {
-            List<Booking> allBookings = bookingRepository.findAllByCustomerId(customerId);
+            Page<Booking> allBookings = bookingRepository.findByCustomer(customer, pageable);
 
             if (allBookings.isEmpty()) {
                 throw new EntityNotFoundException("Bookings not found for customer ID: " + customerId);
             }
 
-            return bookingMapper.toResponseList(allBookings);
+            return bookingMapper.toShortResponsePage(allBookings);
         } catch (DataIntegrityViolationException ex) {
             log.error("Database constraint violation while getting bookings for customer with ID {}", customerId);
             throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
         }
-
     }
 
-    @Transactional
-    public List<BookingResponse> getAllByEmployee (Long employeeId) {
-        log.info("Getting bookings for employee with ID: {}", employeeId);
+    @Transactional(readOnly = true)
+    public Page<BookingShortResponse> getAllByEmployee (Long employeeId, Pageable pageable) {
+        log.info("Getting bookings for employee ID: {}, page: {}, size: {}",
+                employeeId, pageable.getPageNumber(), pageable.getPageSize());
+
+        User employee = userRepository.findById(employeeId)
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
 
         try {
-
-            List<Booking> allBookings = bookingRepository.findAllByEmployeeId(employeeId);
+            Page<Booking> allBookings = bookingRepository.findByEmployee(employee, pageable);
 
             if (allBookings.isEmpty()) {
                 throw new EntityNotFoundException("Bookings not found for employee ID: " + employeeId);
             }
 
-            return bookingMapper.toResponseList(allBookings);
+            return bookingMapper.toShortResponsePage(allBookings);
         } catch (DataIntegrityViolationException ex) {
             log.error("Database constraint violation while getting bookings for employee with ID {}", employeeId);
             throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
         }
+    }
 
+    @Transactional(readOnly = true)
+    public Page<BookingShortResponse> getByEmployeeAndStatus(Long employeeId, BookingStatus status, Pageable pageable) {
+        log.info("Getting bookings for employee ID: {}, status: {}, page: {}, size: {}",
+                employeeId, status, pageable.getPageNumber(), pageable.getPageSize());
+
+        User employee = userRepository.findById(employeeId)
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
+
+        Page<Booking> bookings = bookingRepository.findByEmployeeAndStatus(employee, status, pageable);
+
+        if (bookings.isEmpty()) {
+            log.info("No bookings found for employee ID: {} with status: {}", employeeId, status);
+            return Page.empty(pageable);
+        }
+
+        return bookingMapper.toShortResponsePage(bookings);
     }
 
     @Transactional
@@ -248,6 +313,4 @@ public List<LocalTime> getFreeSlots(Long employeeId, Long serviceId, LocalDate t
         }
         return false;
     }
-
-
 }
