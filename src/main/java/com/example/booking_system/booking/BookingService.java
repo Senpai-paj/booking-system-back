@@ -16,10 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.List;
 
 @org.springframework.stereotype.Service
@@ -33,44 +33,66 @@ public class BookingService {
     private final ScheduleRepository scheduleRepository;
     private final BookingMapper bookingMapper;
 
-    //TODO: createBooking
-    //long numberOfSlots = bookingMinutes / existingSchedule.getSlotGranularityMinutes();
-    /*
+    //TODO: Send free slots, changeStatus
 
-    Schedule existingSchedule = scheduleRepository.findByEmployeeIdAndWeekDayAndIsActiveTrue(
-                employeeId,
-                Day.valueOf(booking.getStartTime().getDayOfWeek().name()))
-                .orElseThrow(() -> new EntityNotFoundException("No active schedule found for this employee on this day"));
+@Transactional(readOnly = true)
+public List<LocalTime> getFreeSlots(Long employeeId, Long serviceId, LocalDate targetDate) {
 
-        long durationOfBooking = Duration.between(booking.getStartTime(), booking.getEndTime()).toMinutes();
-        long workdayStart = existingSchedule.getWorkDayStart().get(ChronoField.MINUTE_OF_DAY);
-        long workdayEnd = existingSchedule.getWorkDayEnd().get(ChronoField.MILLI_OF_DAY);
+    Service service = serviceRepository.findById(serviceId)
+            .orElseThrow(() -> new EntityNotFoundException("Service not found"));
 
-        for (int i = 0; i < allBookingDuringTheDay.size(); i++) {
+    Day weekDay = Day.valueOf(targetDate.getDayOfWeek().name());
+    Schedule schedule = scheduleRepository.findByEmployeeIdAndWeekDayAndIsActiveTrue(employeeId, weekDay)
+            .orElseThrow(() -> new IllegalArgumentException("Employee does not work on this day"));
 
-            if(i + 1 <= allBookingDuringTheDay.size()) {
+    List<LocalTime> freeSlots = new ArrayList<>();
+    LocalTime currentSlotTime = schedule.getWorkDayStart();
+    LocalTime workDayEnd = schedule.getWorkDayEnd();
 
-                long gapMinutes = Duration.between(
-                        allBookingDuringTheDay.get(i).getEndTime(),
-                        allBookingDuringTheDay.get(i+1).getStartTime()).toMinutes();
+    int serviceDuration = service.getDurationMinutes();
+    int stepMinutes = schedule.getSlotGranularityMinutes();
 
-                if (
-                        gapMinutes >= durationOfBooking &&
-                        booking.getStartTime().get(ChronoField.MINUTE_OF_DAY) > workdayStart &&
-                        gapMinutes < booking.getEndTime().get(ChronoField.MINUTE_OF_DAY)
-                )  {
+    while (!currentSlotTime.plusMinutes(serviceDuration).isAfter(workDayEnd)) {
+        LocalDateTime potentialStart = LocalDateTime.of(targetDate, currentSlotTime);
+        LocalDateTime potentialEnd = potentialStart.plusMinutes(serviceDuration);
 
-
-
-                }
-
-
-            }
-
-
-
+        if (!slotNotAvailable(potentialStart, potentialEnd, employeeId, null)) {
+            freeSlots.add(currentSlotTime);
         }
-         */
+
+        // Advance by the 30-minute granularity step
+        currentSlotTime = currentSlotTime.plusMinutes(stepMinutes);
+    }
+
+    return freeSlots;
+}
+
+    @Transactional
+    public BookingResponse createBooking(BookingRequest request) {
+        User customer = userRepository.findById(request.getCustomerId())
+                .orElseThrow(() -> new EntityNotFoundException("Customer not found"));
+        User employee = userRepository.findById(request.getEmployeeId())
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
+        Service service = serviceRepository.findById(request.getServiceId())
+                .orElseThrow(() -> new EntityNotFoundException("Service not found"));
+
+        log.info("Creating booking of service {} for employee with ID {}", request.getServiceId(), request.getEmployeeId());
+
+        if (slotNotAvailable(request.getStartTime(), request.getEndTime(), employee.getId(), null)) {
+            throw new IllegalStateException("The selected time slot has just been taken. Please choose another time.");
+        }
+
+        Booking booking = bookingMapper.toEntity(request, customer, employee, service);
+
+        try {
+            Booking savedBooking = bookingRepository.saveAndFlush(booking);
+
+            return bookingMapper.toResponse(savedBooking);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while saving booking entity for employee ID: {}", employee.getId(), ex);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+    }
 
     @Transactional
     public BookingShortResponse changeStatus(Long bookingId, BookingStatus status) {
@@ -82,7 +104,7 @@ public class BookingService {
 
             bookingMapper.updateBookingStatus(status, existingBooking);
 
-            Booking updatedBooking = bookingRepository.save(existingBooking);
+            Booking updatedBooking = bookingRepository.saveAndFlush(existingBooking);
 
             return bookingMapper.toShortResponse(updatedBooking);
 
@@ -167,7 +189,7 @@ public class BookingService {
 
 
     @Transactional
-    public Booking updateBooking(BookingRequest request, Long bookingId) {
+    public BookingResponse updateBooking(BookingRequest request, Long bookingId) {
 
         Booking existingBooking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found"));
@@ -186,9 +208,11 @@ public class BookingService {
         LocalDateTime finalStart = (request.getStartTime() != null) ? request.getStartTime() : existingBooking.getStartTime();
         LocalDateTime finalEnd = (request.getEndTime() != null) ? request.getEndTime() : existingBooking.getEndTime();
 
+        log.info("Updating booking for date {} for employee with ID {}", request.getStartTime(), request.getEmployeeId());
+
         if (request.getStartTime() != null || request.getEndTime() != null || request.getEmployeeId() != null) {
 
-            if (!checkAvailability(finalStart, finalEnd, finalEmployee.getId(), existingBooking.getId())) {
+            if (slotNotAvailable(finalStart, finalEnd, finalEmployee.getId(), existingBooking.getId())) {
                 throw new IllegalStateException(
                         String.format("Provided booking time is overlapping. Start %s, End %s", finalStart, finalEnd)
                 );
@@ -197,10 +221,18 @@ public class BookingService {
 
         bookingMapper.updateBooking(request,newCustomer, newEmployee, newService, existingBooking);
 
-        return bookingRepository.save(existingBooking);
+        try {
+            Booking savedBooking = bookingRepository.saveAndFlush(existingBooking);
+
+            return bookingMapper.toResponse(savedBooking);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Database constraint violation while saving booking entity for employee ID: {}", finalEmployee.getId(), ex);
+            throw new IllegalStateException("A booking conflict occurred. Another process may have modified this booking simultaneously.", ex);
+        }
+
     }
 
-    private boolean checkAvailability(LocalDateTime start,LocalDateTime end, Long employeeId, Long bookingId) {
+    private boolean slotNotAvailable(LocalDateTime start, LocalDateTime end, Long employeeId, Long bookingId) {
 
         List<Booking> allBookingDuringTheDay = bookingRepository.findActiveBookingsByEmployeeAndDate(employeeId, start);
 
@@ -211,10 +243,10 @@ public class BookingService {
                     end.isAfter(currentBooking.getStartTime()) &&
                             !currentBooking.getId().equals(bookingId)
             ) {
-                return false;
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
 
